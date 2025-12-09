@@ -10,11 +10,60 @@
             margin: 0;
             display: flex;
             justify-content: center;
+            align-items: center;
+            height: 100vh;
         }
 
         canvas {
             image-rendering: pixelated;
-            margin-top: 20px;
+            margin: 0 auto;
+            display: block;
+            /* preserve intrinsic aspect ratio; allow scaling down but not stretching */
+            width: auto;
+            /* never force to fill container width */
+            height: auto;
+            max-width: 100vw;
+            /* scale down to viewport width if needed */
+            max-height: 100vh;
+            /* or viewport height */
+        }
+
+        /* Controls panel */
+        #settingsBtn {
+            position: fixed;
+            right: 12px;
+            top: 12px;
+            z-index: 10000;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: none;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #controlsPanel {
+            position: fixed;
+            left: 8px;
+            top: 8px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 8px;
+            font-family: sans-serif;
+            font-size: 12px;
+            border-radius: 6px;
+            z-index: 9999;
+            display: none;
+            max-width: calc(100vw - 40px);
+        }
+
+        @media (min-width: 800px) {
+
+            /* on larger screens show controls by default */
+            #controlsPanel {
+                display: block;
+            }
         }
     </style>
 </head>
@@ -23,11 +72,12 @@
 
     <video id="video" autoplay playsinline style="display:none;"></video>
     <canvas id="canvas"></canvas>
-    <div
-        style="position:fixed; left:8px; top:8px; background:rgba(0,0,0,0.6); color:white; padding:6px; font-family:sans-serif; font-size:12px; border-radius:6px; z-index:9999;">
-        <label>Threshold weight (0 = top, 100 = bottom):</label><br>
-        <input id="thresholdWeight" type="number" min="0" max="100" value="50" step="1" style="width:68px"><br>
-        <!-- Dot gap slider removed; use interactive dragging to position dots -->
+    <button id="settingsBtn">Settings</button>
+    <div id="controlsPanel">
+        <label>Threshold weight (0 = bottom, 1 = top):</label><br>
+        <input id="thresholdWeight" type="range" min="0" max="1" step="0.01" value="0.5" style="width:140px"><br>
+        <label style="margin-top:6px; display:block;">Dot separation (0 = together, 1 = full height):</label>
+        <input id="dotGap" type="range" min="0.01" max="1" step="0.01" value="0.2" style="width:140px"><br>
         <label style="margin-top:6px; display:block;">Blur radius (integer):</label>
         <input id="blurRadius" type="number" min="0" max="50" value="10" step="1" style="width:68px"><br>
         <label style="margin-top:6px; display:block;">minSize (edge pixels):</label>
@@ -38,10 +88,7 @@
         const video = document.getElementById("video");
         const canvas = document.getElementById("canvas");
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        // interactive dot dragging state
-        let draggingDot = null; // 'top' or 'bottom' or null
-        let dotY1_override = null;
-        let dotY2_override = null;
+        // dot gap is controlled by slider (no interactive dragging)
 
         async function startCamera() {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -155,19 +202,19 @@
             // --- Compute reference dot positions ---
             const dotX = Math.floor(w / 2);
 
-            // default gap used when dots not set by dragging
-            const gap = 0.5;
-
-            // Allow interactive overrides via dragging: if override is set use that position
-            let dotY1 = dotY1_override !== null ? dotY1_override : Math.floor(h * (0.5 - gap / 2));
-            let dotY2 = dotY2_override !== null ? dotY2_override : Math.floor(h * (0.5 + gap / 2));
+            // read gap from control (0.0..1.0), default 0.5
+            const gapEl = document.getElementById('dotGap');
+            const gap = gapEl ? (parseFloat(gapEl.value) || 0.5) : 0.5;
+            // compute dot positions symmetrically around center
+            const dotY1 = Math.floor(h * (0.5 - gap / 2));
+            const dotY2 = Math.floor(h * (0.5 + gap / 2));
             // --- Compute grayscale threshold from dots (weighted by slider) ---
             const g1 = getGrayAt(data, dotX, dotY1, w, 4);
             const g2 = getGrayAt(data, dotX, dotY2, w, 4);
             const twEl = document.getElementById('thresholdWeight');
-            const weight = twEl ? (parseFloat(twEl.value) / 100.0) : 0.5;
-            // weight==0 => threshold = g1 (top); weight==1 => threshold = g2 (bottom)
-            const threshold = g1 * (1 - weight) + g2 * weight;
+            const weight = twEl ? (isFinite(+twEl.value) ? +twEl.value : 0.5) : 0.5;
+            // weight==1 => threshold = g1 (top); weight==0 => threshold = g2 (bottom)
+            const threshold = g1 * weight + g2 * (1 - weight);
 
             // --- Prepare grayscale buffer ---
             const gray = new Uint8ClampedArray(w * h);
@@ -287,94 +334,19 @@
             ctx.arc(dotX, dotY2, 3, 0, Math.PI * 2);
             ctx.fill();
 
-            // when dragging, draw a small highlight line to show draggable state
-            if (draggingDot) {
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                if (draggingDot === 'top') {
-                    ctx.moveTo(0, dotY1); ctx.lineTo(w, dotY1);
-                } else if (draggingDot === 'bottom') {
-                    ctx.moveTo(0, dotY2); ctx.lineTo(w, dotY2);
-                }
-                ctx.stroke();
-            }
-
             requestAnimationFrame(processFrame);
         }
 
         startCamera();
 
-        // Pointer event handlers to drag the sample dots vertically
-        canvas.addEventListener('pointerdown', (ev) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = Math.round((ev.clientX - rect.left) * (canvas.width / rect.width));
-            const y = Math.round((ev.clientY - rect.top) * (canvas.height / rect.height));
-            // compute current dot positions as in processFrame (approx)
-            const dotX = Math.floor(canvas.width / 2);
-            const gap = 0.5;
-            const dy1 = dotY1_override !== null ? dotY1_override : Math.floor(canvas.height * (0.5 - gap / 2));
-            const dy2 = dotY2_override !== null ? dotY2_override : Math.floor(canvas.height * (0.5 + gap / 2));
-            const d1 = Math.hypot(x - dotX, y - dy1);
-            const d2 = Math.hypot(x - dotX, y - dy2);
-            const radius = 12; // clickable radius
-            const minSep = 1; // minimum pixel separation between top and bottom
-            if (d1 <= radius && d1 <= d2) {
-                draggingDot = 'top';
-                let newY = Math.max(0, Math.min(canvas.height - 1, y));
-                // ensure top stays above bottom
-                if (dotY2_override !== null) newY = Math.min(newY, dotY2_override - minSep);
-                else {
-                    // if no bottom override, ensure it stays above default bottom
-                    const defaultBottom = Math.floor(canvas.height * (0.5 + gap / 2));
-                    newY = Math.min(newY, defaultBottom - minSep);
-                }
-                dotY1_override = newY;
-                canvas.setPointerCapture(ev.pointerId);
-            } else if (d2 <= radius) {
-                draggingDot = 'bottom';
-                let newY = Math.max(0, Math.min(canvas.height - 1, y));
-                // ensure bottom stays below top
-                if (dotY1_override !== null) newY = Math.max(newY, dotY1_override + minSep);
-                else {
-                    const defaultTop = Math.floor(canvas.height * (0.5 - gap / 2));
-                    newY = Math.max(newY, defaultTop + minSep);
-                }
-                dotY2_override = newY;
-                canvas.setPointerCapture(ev.pointerId);
-            }
-        });
-
-        canvas.addEventListener('pointermove', (ev) => {
-            if (!draggingDot) return;
-            const rect = canvas.getBoundingClientRect();
-            const y = Math.round((ev.clientY - rect.top) * (canvas.height / rect.height));
-            const minSep = 1;
-            const default_sep = 0.2;
-            if (draggingDot === 'top') {
-                let newY = Math.max(0, Math.min(canvas.height - 1, y));
-                // don't allow top to cross bottom
-                if (dotY2_override !== null) newY = Math.min(newY, dotY2_override - minSep);
-                else newY = Math.min(newY, Math.floor(canvas.height * (0.5 + default_sep / 2)) - minSep);
-                dotY1_override = newY;
-            } else if (draggingDot === 'bottom') {
-                let newY = Math.max(0, Math.min(canvas.height - 1, y));
-                if (dotY1_override !== null) newY = Math.max(newY, dotY1_override + minSep);
-                else newY = Math.max(newY, Math.floor(canvas.height * (0.5 - default_sep / 2)) + minSep);
-                dotY2_override = newY;
-            }
-            // we no longer update a slider; keep override positions only
-        });
-
-        canvas.addEventListener('pointerup', (ev) => {
-            if (draggingDot) {
-                try { canvas.releasePointerCapture(ev.pointerId); } catch (e) { }
-                draggingDot = null;
-                // no slider to sync; leave overrides in place
-            }
-        });
-
-        canvas.addEventListener('pointercancel', (ev) => { draggingDot = null; });
+        // settings panel toggle
+        const settingsBtn = document.getElementById('settingsBtn');
+        const controlsPanel = document.getElementById('controlsPanel');
+        if (settingsBtn && controlsPanel) {
+            settingsBtn.addEventListener('click', () => {
+                controlsPanel.style.display = controlsPanel.style.display === 'block' ? 'none' : 'block';
+            });
+        }
     </script>
 
 </body>
