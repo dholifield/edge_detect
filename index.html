@@ -39,7 +39,7 @@
             border: none;
             padding: 8px 10px;
             border-radius: 6px;
-            font-size: 16px;
+            font-size: 36px;
             cursor: pointer;
         }
 
@@ -51,19 +51,11 @@
             color: white;
             padding: 8px;
             font-family: sans-serif;
-            font-size: 12px;
+            font-size: 24px;
             border-radius: 6px;
             z-index: 9999;
             display: none;
             max-width: calc(100vw - 40px);
-        }
-
-        @media (min-width: 800px) {
-
-            /* on larger screens show controls by default */
-            #controlsPanel {
-                display: block;
-            }
         }
     </style>
 </head>
@@ -99,9 +91,36 @@
             video.onloadedmetadata = () => {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
+                updateCanvasSize();
                 requestAnimationFrame(processFrame);
             };
         }
+
+        // Resize canvas CSS display size to maximally fill viewport while preserving aspect ratio
+        function updateCanvasSize() {
+            if (!canvas.width || !canvas.height) return;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const aspect = canvas.width / canvas.height;
+            let displayWidth, displayHeight;
+            if (vw / vh > aspect) {
+                // viewport is wider than camera: constrain by height
+                displayHeight = vh;
+                displayWidth = Math.round(vh * aspect);
+            } else {
+                // viewport is taller/narrower: constrain by width
+                displayWidth = vw;
+                displayHeight = Math.round(vw / aspect);
+            }
+            canvas.style.width = displayWidth + 'px';
+            canvas.style.height = displayHeight + 'px';
+            // center horizontally
+            canvas.style.marginLeft = ((vw - displayWidth) / 2) + 'px';
+            canvas.style.marginRight = canvas.style.marginLeft;
+        }
+
+        window.addEventListener('resize', updateCanvasSize);
+        window.addEventListener('orientationchange', updateCanvasSize);
 
         // --- utility to get grayscale at pixel ---
         // If `radius` > 0, average luminance over a (2*radius+1) square centered at (x,y).
