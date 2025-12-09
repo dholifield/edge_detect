@@ -12,6 +12,7 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
+            overflow: hidden;
         }
 
         canvas {
@@ -51,11 +52,69 @@
             color: white;
             padding: 8px;
             font-family: sans-serif;
-            font-size: 24px;
+            font-size: 36px;
             border-radius: 6px;
             z-index: 9999;
             display: none;
             max-width: calc(100vw - 40px);
+        }
+
+        /* Larger, touch-friendly slider styling */
+        #controlsPanel input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 34px;
+            /* visual area reserved for the control */
+            margin: 8px 0;
+            background: transparent;
+        }
+
+        #controlsPanel input[type="range"]::-webkit-slider-runnable-track {
+            height: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+        }
+
+        #controlsPanel input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid rgba(0, 0, 0, 0.6);
+            margin-top: -10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        #controlsPanel input[type="range"]::-moz-range-track {
+            height: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+        }
+
+        #controlsPanel input[type="range"]::-moz-range-thumb {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid rgba(0, 0, 0, 0.6);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        @media (max-width: 600px) {
+
+            #controlsPanel input[type="range"]::-webkit-slider-thumb,
+            #controlsPanel input[type="range"]::-moz-range-thumb {
+                width: 40px;
+                height: 40px;
+                margin-top: -15px;
+            }
+
+            #controlsPanel input {
+                width: 100%;
+                box-sizing: border-box;
+            }
         }
     </style>
 </head>
@@ -71,9 +130,9 @@
         <label style="margin-top:6px; display:block;">Dot separation (0 = together, 1 = full height):</label>
         <input id="dotGap" type="range" min="0.01" max="1" step="0.01" value="0.2" style="width:140px"><br>
         <label style="margin-top:6px; display:block;">Blur radius (integer):</label>
-        <input id="blurRadius" type="number" min="0" max="50" value="10" step="1" style="width:68px"><br>
+        <input id="blurRadius" type="number" min="0" max="50" value="5" step="1" style="width:200px; height:30px"><br>
         <label style="margin-top:6px; display:block;">minSize (edge pixels):</label>
-        <input id="minSize" type="number" min="0" max="100000" value="1000" step="1" style="width:80px">
+        <input id="minSize" type="number" min="0" max="100000" value="1000" step="1" style="width:200px; height:30px">
     </div>
 
     <script>
@@ -114,9 +173,8 @@
             }
             canvas.style.width = displayWidth + 'px';
             canvas.style.height = displayHeight + 'px';
-            // center horizontally
-            canvas.style.marginLeft = ((vw - displayWidth) / 2) + 'px';
-            canvas.style.marginRight = canvas.style.marginLeft;
+            // center without creating extra page width
+            canvas.style.margin = '0 auto';
         }
 
         window.addEventListener('resize', updateCanvasSize);
