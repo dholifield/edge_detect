@@ -350,16 +350,17 @@
             const rect = canvas.getBoundingClientRect();
             const y = Math.round((ev.clientY - rect.top) * (canvas.height / rect.height));
             const minSep = 1;
+            const default_sep = 0.2;
             if (draggingDot === 'top') {
                 let newY = Math.max(0, Math.min(canvas.height - 1, y));
                 // don't allow top to cross bottom
                 if (dotY2_override !== null) newY = Math.min(newY, dotY2_override - minSep);
-                else newY = Math.min(newY, Math.floor(canvas.height * (0.5 + 0.5 / 2)) - minSep);
+                else newY = Math.min(newY, Math.floor(canvas.height * (0.5 + default_sep / 2)) - minSep);
                 dotY1_override = newY;
             } else if (draggingDot === 'bottom') {
                 let newY = Math.max(0, Math.min(canvas.height - 1, y));
                 if (dotY1_override !== null) newY = Math.max(newY, dotY1_override + minSep);
-                else newY = Math.max(newY, Math.floor(canvas.height * (0.5 - 0.5 / 2)) + minSep);
+                else newY = Math.max(newY, Math.floor(canvas.height * (0.5 - default_sep / 2)) + minSep);
                 dotY2_override = newY;
             }
             // we no longer update a slider; keep override positions only
